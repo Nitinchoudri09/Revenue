@@ -17,7 +17,7 @@ app=FastAPI(title="Revenue Reconciliation API")
 frontend_origins=[origin.strip() for origin in settings.frontend_url.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://revenue-ec1w.onrender.com", "http://localhost:5173"] + frontend_origins,
+    allow_origins=["https://revenue-1-gfdf.onrender.com", "http://localhost:5173"] + frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

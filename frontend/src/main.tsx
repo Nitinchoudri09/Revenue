@@ -124,7 +124,13 @@ function Auth() {
       authLogin(data.access_token);
       nav("/");
     } catch (e: any) {
-      toast.error(e.response?.data?.detail || "Unable to continue");
+      if (e.response?.data?.detail) {
+        toast.error(e.response.data.detail);
+      } else if (e.message) {
+        toast.error(e.message);
+      } else {
+        toast.error("An unknown network error occurred.");
+      }
     }
   };
   return (
