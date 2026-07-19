@@ -17,8 +17,7 @@ app=FastAPI(title="Revenue Reconciliation API")
 frontend_origins=[origin.strip() for origin in settings.frontend_url.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=frontend_origins or ["http://localhost:5173"],
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$",
+    allow_origins=["https://revenue-ec1w.onrender.com", "http://localhost:5173"] + frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,8 +29,15 @@ def user(c:HTTPAuthorizationCredentials=Depends(bearer),db:Session=Depends(get_d
     if not value: raise HTTPException(401,"Invalid or expired token")
     return value
 def owned(db,uid,did,kind): return db.scalar(select(Dataset).where(Dataset.id==did,Dataset.user_id==uid,Dataset.kind==kind))
-@app.get("/health")
-def health(): return {"status":"ok"}
+from fastapi.responses import RedirectResponse
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs")
+
+@app.get("/health", tags=["Health"])
+async def health():
+    return {"status": "healthy"}
 @app.post("/auth/register",status_code=201)
 def register(body:Register,db:Session=Depends(get_db)):
     if db.scalar(select(User).where(User.email==body.email.lower())): raise HTTPException(409,"Email already registered")
