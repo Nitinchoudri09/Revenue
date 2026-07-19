@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useState, useMemo, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import {
   QueryClient,
@@ -353,18 +353,35 @@ function Dashboard() {
     retry: 1,
   });
   const rows = useQuery<Result[]>({
-    queryKey: ["rows", search, status],
+    queryKey: ["rows"],
     queryFn: () =>
       api
         .get("/discrepancies", {
-          params: { search, status: status || undefined, limit: 1000 },
+          params: { limit: 10000 },
         })
         .then((r) => r.data),
   });
   
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const filteredResults = useMemo(() => {
+    if (!rows.data) return [];
+    const query = debouncedSearch.trim().toLowerCase();
+    
+    return rows.data.filter((row) => {
+      const matchesOutcome = status === "" || row.classification === status;
+      const matchesSearch = !query || String(row.match_key ?? "").toLowerCase().includes(query);
+      return matchesOutcome && matchesSearch;
+    });
+  }, [rows.data, status, debouncedSearch]);
+  
   const [sorting, setSorting] = useState<SortingState>([]);
   const table = useReactTable({
-    data: rows.data || [],
+    data: filteredResults,
     columns,
     state: {
       sorting,
@@ -375,10 +392,15 @@ function Dashboard() {
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: {
-        pageSize: 10,
+        pageSize: 25,
       },
     },
   });
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    table.setPageIndex(0);
+  }, [status, debouncedSearch, table]);
   const run = useMutation({
     mutationFn: () =>
       api.post("/reconciliation/run", {
@@ -394,23 +416,28 @@ function Dashboard() {
     },
     onError: (e: any) => toast.error(e.response?.data?.detail || "Run failed"),
   });
-  const d = dash.data;
-  const cards = d
-    ? [
-        ["Total orders", d.total_orders],
-        ["Total payments", d.total_payments],
-        ["Matched orders", d.matched_orders],
-        ["Matched value", `$${d.matched_value.toLocaleString()}`],
-        ["Money at risk", `$${d.money_at_risk.toLocaleString()}`],
-        ["Disputed value", `$${d.disputed_value.toLocaleString()}`],
-        ["Discrepancies", d.discrepancy_count],
-        ["Reconciliation", `${d.reconciliation_percent}%`],
-      ]
-    : [];
-  const chart = Object.entries(d?.breakdown || {}).map(([name, value]) => ({
-    name: name.replaceAll("_", " "),
-    value,
-  }));
+  const cards = useMemo(() => {
+    const d = dash.data;
+    return d
+      ? [
+          ["Total orders", d.total_orders],
+          ["Total payments", d.total_payments],
+          ["Matched orders", d.matched_orders],
+          ["Matched value", `$${d.matched_value.toLocaleString()}`],
+          ["Money at risk", `$${d.money_at_risk.toLocaleString()}`],
+          ["Disputed value", `$${d.disputed_value.toLocaleString()}`],
+          ["Discrepancies", d.discrepancy_count],
+          ["Reconciliation", `${d.reconciliation_percent}%`],
+        ]
+      : [];
+  }, [dash.data]);
+
+  const chart = useMemo(() => {
+    return Object.entries(dash.data?.breakdown || {}).map(([name, value]) => ({
+      name: name.replaceAll("_", " "),
+      value,
+    }));
+  }, [dash.data]);
   return (
     <Shell>
       <main className="max-w-7xl mx-auto p-5 md:p-8 space-y-8">
@@ -475,6 +502,7 @@ function Dashboard() {
                       dataKey="value"
                       innerRadius={60}
                       outerRadius={90}
+                      isAnimationActive={false}
                     >
                       {chart.map((_, i) => (
                         <Cell
@@ -502,7 +530,7 @@ function Dashboard() {
                     <XAxis dataKey="name" hide />
                     <YAxis />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#14b8a6" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="value" fill="#14b8a6" radius={[6, 6, 0, 0]} isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -526,7 +554,7 @@ function Dashboard() {
               onChange={(e) => setStatus(e.target.value)}
             >
               <option value="">All outcomes</option>
-              {Object.keys(d?.breakdown || {}).map((x) => (
+              {Object.keys(dash.data?.breakdown || {}).map((x) => (
                 <option value={x} key={x}>
                   {x.replaceAll("_", " ")}
                 </option>
@@ -599,10 +627,23 @@ function Dashboard() {
                   Next
                 </button>
               </div>
-              <span>
-                Page {table.getState().pagination.pageIndex + 1} of{" "}
-                {table.getPageCount()}
-              </span>
+              <div className="flex items-center gap-4">
+                <select
+                  className="input w-auto py-1.5 pl-3 pr-8"
+                  value={table.getState().pagination.pageSize}
+                  onChange={(e) => table.setPageSize(Number(e.target.value))}
+                >
+                  {[25, 50, 100].map((pageSize) => (
+                    <option key={pageSize} value={pageSize}>
+                      Show {pageSize}
+                    </option>
+                  ))}
+                </select>
+                <span>
+                  Page {table.getState().pagination.pageIndex + 1} of{" "}
+                  {table.getPageCount() || 1}
+                </span>
+              </div>
             </div>
           )}
         </section>
