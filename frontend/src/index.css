@@ -1,37 +1,60 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-:root {
-  font-family: Inter, ui-sans-serif, system-ui;
-  background: #f3f6f8;
-  color: #0b1220;
+
+@layer base {
+  :root {
+    --bg-primary: #F6F8FB;
+    --sidebar-navy: #071426;
+    --primary-teal: #0F766E;
+    --accent-mint: #2DD4BF;
+    --critical-red: #DC2626;
+    --warning-amber: #D97706;
+    --success-green: #15803D;
+    --text-main: #172033;
+    --text-secondary: #64748B;
+    --border-color: #E2E8F0;
+    --card-bg: #FFFFFF;
+  }
+
+  body {
+    @apply bg-[var(--bg-primary)] text-[var(--text-main)] font-sans antialiased;
+    font-family: 'Inter', 'Manrope', system-ui, sans-serif;
+  }
+
+  .dark body, .dark {
+    /* Optionally implement a true dark mode later if requested, 
+       but for now we default to the bright fintech design. */
+    --bg-primary: #071426;
+    --card-bg: #0b1a30;
+    --text-main: #F6F8FB;
+    --text-secondary: #94a3b8;
+    --border-color: #1e293b;
+  }
 }
-* {
-  box-sizing: border-box;
-}
-body {
-  margin: 0;
-}
-.dark {
-  color-scheme: dark;
-}
-.dark body,
-.dark {
-  background: #070b12;
-  color: #e5edf5;
-}
-.panel {
-  @apply rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
-}
-.btn {
-  @apply rounded-xl px-4 py-2 font-semibold transition disabled:opacity-50;
-}
-.primary {
-  @apply btn bg-slate-950 text-white hover:bg-slate-800 dark:bg-teal-300 dark:text-slate-950;
-}
-.input {
-  @apply w-full rounded-xl border border-slate-300 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-teal-400 dark:border-slate-700;
-}
-.badge {
-  @apply inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-bold dark:bg-slate-800;
+
+@layer components {
+  .panel {
+    @apply rounded-[16px] border border-[var(--border-color)] bg-[var(--card-bg)] shadow-sm;
+  }
+  
+  .btn {
+    @apply inline-flex items-center justify-center rounded-[12px] px-4 py-2 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .primary {
+    @apply btn bg-[var(--primary-teal)] text-white hover:bg-[#0d655d] dark:bg-[var(--accent-mint)] dark:text-[var(--sidebar-navy)];
+  }
+
+  .secondary {
+    @apply btn bg-white border border-[var(--border-color)] text-[var(--text-main)] hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-white dark:hover:bg-slate-700;
+  }
+  
+  .input {
+    @apply w-full rounded-[12px] border border-[var(--border-color)] bg-transparent px-4 py-2 outline-none transition-shadow focus:ring-2 focus:ring-[var(--accent-mint)] focus:border-transparent dark:focus:ring-[var(--primary-teal)];
+  }
+  
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
 }
