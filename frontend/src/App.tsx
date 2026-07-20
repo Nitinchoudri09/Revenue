@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { useAuthProvider, AuthContext } from './hooks/useAuth';
@@ -10,7 +10,7 @@ import { AppShell } from './components/layout/AppShell';
 import { DashboardPage } from './components/dashboard/DashboardPage';
 import { OutcomeDetailsPage } from './components/reconciliation/OutcomeDetailsPage';
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
@@ -19,16 +19,20 @@ const queryClient = new QueryClient({
 });
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token } = React.useContext(AuthContext);
-  if (!token) return <Navigate to="/login" replace />;
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
   return <>{children}</>;
 }
 
 function AuthRouter() {
   const [isLogin, setIsLogin] = useState(true);
-  const { token } = React.useContext(AuthContext);
+  const token = localStorage.getItem("token");
   
-  if (token) return <Navigate to="/" replace />;
+  if (token) return <Navigate to="/dashboard" replace />;
 
   return (
     <AuthLayout>
@@ -41,23 +45,30 @@ function AuthRouter() {
   );
 }
 
-export function App() {
+function AuthProviderWrapper({ children }: { children: React.ReactNode }) {
   const auth = useAuthProvider();
+  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
+}
 
+export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={auth}>
-        <BrowserRouter>
+      <BrowserRouter>
+        <AuthProviderWrapper>
           <Routes>
             <Route path="/login" element={<AuthRouter />} />
+            <Route path="/register" element={<AuthRouter />} />
             
             <Route path="/" element={
-              <ProtectedRoute>
-                <AppShell>
-                  <DashboardPage />
-                </AppShell>
-              </ProtectedRoute>
+               localStorage.getItem("token") ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
             } />
+            
+            <Route path="/dashboard" element={<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>} />
+            <Route path="/upload" element={<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>} />
+            <Route path="/reconciliation" element={<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>} />
+            <Route path="/discrepancies" element={<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><AppShell><DashboardPage /></AppShell></ProtectedRoute>} />
             
             <Route path="/discrepancy/:id" element={
               <ProtectedRoute>
@@ -67,8 +78,8 @@ export function App() {
             
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </BrowserRouter>
-      </AuthContext.Provider>
+        </AuthProviderWrapper>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }

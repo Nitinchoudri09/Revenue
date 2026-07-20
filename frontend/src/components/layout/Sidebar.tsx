@@ -4,12 +4,12 @@ import { LayoutDashboard, Upload, ShieldCheck, FileSpreadsheet, PieChart, Settin
 
 export function Sidebar({ className = '', onClose }: { className?: string; onClose?: () => void }) {
   const links = [
-    { name: 'Overview', to: '/', icon: <LayoutDashboard size={20} /> },
-    { name: 'Upload Data', to: '/#upload', icon: <Upload size={20} /> },
-    { name: 'Discrepancies', to: '/#discrepancies', icon: <FileSpreadsheet size={20} /> },
-    { name: 'Reconciliation', to: '/#reconciliation', icon: <ShieldCheck size={20} /> },
-    { name: 'Reports', to: '/#reports', icon: <PieChart size={20} /> },
-    { name: 'Settings', to: '/#settings', icon: <Settings size={20} /> },
+    { name: 'Overview', to: '/dashboard', icon: <LayoutDashboard size={20} /> },
+    { name: 'Upload Data', to: '/upload', icon: <Upload size={20} /> },
+    { name: 'Discrepancies', to: '/discrepancies', icon: <FileSpreadsheet size={20} /> },
+    { name: 'Reconciliation', to: '/reconciliation', icon: <ShieldCheck size={20} /> },
+    { name: 'Reports', to: '/reports', icon: <PieChart size={20} /> },
+    { name: 'Settings', to: '/settings', icon: <Settings size={20} /> },
   ];
 
   return (

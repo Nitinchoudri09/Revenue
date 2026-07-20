@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff, Info } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { ErrorMessage } from '../ui/ErrorMessage';
@@ -11,8 +11,11 @@ import api from '../../services/api';
 export function LoginForm({ onSwitch }: { onSwitch: () => void }) {
   const { login } = useAuth();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  
+  const isExpired = searchParams.get('expired') === '1';
   
   const { register, handleSubmit, formState: { isSubmitting, errors } } = useForm();
 
@@ -35,6 +38,13 @@ export function LoginForm({ onSwitch }: { onSwitch: () => void }) {
           Access your reconciliation workspace.
         </p>
       </div>
+
+      {isExpired && !errorMsg && (
+        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 p-3 rounded-lg flex gap-3 text-sm font-medium">
+          <Info className="shrink-0" size={18} />
+          <p>Your session has expired. Please sign in again.</p>
+        </div>
+      )}
 
       {errorMsg && <ErrorMessage title="Login Failed" message={errorMsg} />}
 

@@ -26,6 +26,18 @@ import { Result } from '../../types';
 
 export function DashboardPage() {
   const nav = useNavigate();
+  
+  // Handle route-based scrolling
+  React.useEffect(() => {
+    const path = window.location.pathname.replace('/', '');
+    if (path && path !== 'dashboard') {
+      const el = document.getElementById(path);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [window.location.pathname]);
+
   const [ordersId, setOrdersId] = useState<number>();
   const [paymentsId, setPaymentsId] = useState<number>();
   
