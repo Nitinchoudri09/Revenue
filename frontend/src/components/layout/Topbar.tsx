@@ -3,7 +3,7 @@ import { Menu, Moon, Sun, LogOut, Bell } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [dark, setDark] = React.useState(localStorage.theme === 'dark');
 
   const toggleTheme = () => {
@@ -52,10 +52,10 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             onClick={() => logout()}
           >
             <div className="w-8 h-8 rounded-full bg-[var(--primary-teal)] text-white flex items-center justify-center font-bold text-sm">
-              AD
+              {user ? user.name.substring(0, 2).toUpperCase() : 'U'}
             </div>
             <div className="hidden md:block text-left">
-              <p className="text-sm font-semibold text-[var(--text-main)] leading-tight">Admin User</p>
+              <p className="text-sm font-semibold text-[var(--text-main)] leading-tight">{user ? user.name : 'Loading...'}</p>
               <p className="text-xs text-[var(--text-secondary)]">Sign out</p>
             </div>
             <LogOut size={16} className="ml-1 text-slate-400 md:hidden" />

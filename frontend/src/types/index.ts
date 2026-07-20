@@ -25,6 +25,7 @@ export type DashboardStats = {
 
 export type AuthContextType = {
   token: string | null;
+  user: { name: string; email: string } | null;
   login: (token: string) => void;
   logout: () => void;
 };

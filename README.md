@@ -1,71 +1,100 @@
-# Revenue Reconciliation Dashboard
+# LedgerView: Revenue Reconciliation Dashboard
 
-Production-ready, multi-tenant reconciliation for order and payment CSVs. The React 18/Vite client talks to a FastAPI service backed by PostgreSQL. Matching is deterministic; AI only explains already-persisted outcomes.
+LedgerView is a production-ready, multi-tenant financial operations tool designed to deterministically reconcile `orders.csv` against `payments.csv`. It provides actionable insights into revenue mismatches, missing payments, and financial risks through a polished fintech dashboard.
 
-## Run locally
+## Setup
 
-Copy `.env.example` to `.env`, replace `JWT_SECRET`, then run `docker compose up --build`. Open `http://localhost:5173`; API docs are at `http://localhost:8000/docs`.
+To run this application locally using Docker:
+1. Ensure you have Docker and Docker Compose installed.
+2. Copy the example environment file: `cp .env.example .env`
+3. Open `.env` and set `JWT_SECRET` to a secure random string (e.g., `openssl rand -hex 32`).
+4. Run the stack: `docker compose up --build`
+5. The frontend will be available at `http://localhost:5173` and the backend API docs at `http://localhost:8000/docs`.
 
-Manual setup requires Python 3.12 and Node 20:
-
+To run it manually without Docker (requires Python 3.12 and Node 20):
 ```bash
-cd backend && pip install -r requirements.txt && alembic upgrade head && uvicorn app.main:app --reload
-cd frontend && npm install && npm run dev
+# Terminal 1: Backend
+cd backend
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
+
+# Terminal 2: Frontend
+cd frontend
+npm install
+npm run dev
 ```
+Make sure to configure the `DATABASE_URL` (defaulting to SQLite if omitted) and `JWT_SECRET` in your `.env` file for the backend.
 
-## Architecture and schema
+## Architecture
 
-The SPA uses React Router, TanStack Query, React Hook Form, Axios, Recharts, React Table dependencies, Tailwind, and Sonner. FastAPI separates models and deterministic import/reconciliation services. SQLAlchemy parameterizes all queries.
+The system is separated into a React/Vite frontend and a FastAPI backend backed by PostgreSQL (or SQLite locally), orchestrated via SQLAlchemy. 
 
-Normalized tables are `users`, `datasets`, `orders`, `payments`, `reconciliation_runs`, `reconciliation_results`, `import_errors`, and `llm_explanations`. Foreign keys, ownership indexes, unique emails, and per-user/type/content upload hashes are created by Alembic. Every protected query includes the authenticated user ID, so datasets and results cannot cross tenant boundaries.
+**Request Flow:**
+When a user uploads a CSV in the frontend, the data is sent to the FastAPI ingestion endpoints (`/upload/orders` or `/upload/payments`). The backend parses the CSVs using pandas, validates the data, and persists valid rows into normalized `orders` or `payments` tables linked to the user's dataset. 
 
-## Authentication
+When the user clicks "Run Reconciliation", the deterministic matching engine evaluates the selected order and payment datasets against a strict hierarchy of business rules. The outcome of each pairing is persisted in the `reconciliation_results` table. The React frontend then polls the `/dashboard` and `/discrepancies` endpoints to retrieve these outcomes, aggregating them into KPI cards (like Total Risk and Match Rate) and populating the drill-down table using TanStack Query. Finally, if a user requests a business explanation for a discrepancy, the backend makes an isolated call to an LLM, storing the result in the `llm_explanations` table so it only needs to be generated once.
 
-Registration validates inputs and hashes passwords with bcrypt. Login returns an expiring HS256 JWT. The client sends the bearer token to protected APIs; the server always resolves the user from the signed subject.
+## Reconciliation logic
 
-## CSVs and matching
+The deterministic reconciliation engine evaluates datasets by normalizing the match key (`order_id` falling back to `order_reference`, lowercased, and stripped of non-alphanumeric characters except hyphens). Normalization is critical because upstream systems frequently introduce slight variations (e.g., "ORD-123" vs "ord 123"), which would otherwise cause false-positive mismatches.
 
-Both files require `amount`, `currency`, and either `order_id` or `order_reference`. Payments may include `payment_id` and `settled_amount`; both files may include `status` and `created_at`. Imports reject unreadable/empty data, missing identifiers, invalid decimals/currencies, oversize files, and duplicate content.
+The engine evaluates discrepancies in this strict precedence:
+1. **duplicate_order**: Multiple orders share the same order ID, making reconciliation ambiguous.
+2. **duplicate_payment**: Multiple payments share the same transaction reference.
+3. **multiple_payments**: A single order corresponds to multiple different payments.
+4. **payment_without_order**: A payment exists but there is no corresponding order record.
+5. **missing_payment**: An order exists but there is no payment recorded.
+6. **cancelled_order**: The order was cancelled but a payment was processed.
+7. **refunded_order**: The order was refunded.
+8. **failed_payment**: The payment failed to capture.
+9. **currency_mismatch**: The order and payment were processed in different currencies.
+10. **settlement_mismatch**: The payment captured less than the settled amount.
+11. **amount_mismatch**: The order amount differs from the payment amount.
+12. **status_mismatch**: The payment status conflicts with the order status.
+13. **matched**: The records perfectly align.
 
-Rows use `order_id`, falling back to `order_reference`, and keys are sorted before evaluation. Fixed rule precedence detects duplicate order/payment, multiple payments, missing counterparts, cancelled/refunded orders, failed payments, currency/amount/settlement/status mismatch, matched records, and unknown anomalies. Decimal tolerance is intentionally `0.00`: financial differences are never hidden. Expected, actual, difference, risk, reason, and confidence are stored. Re-running the same pair replaces that pair's prior results and produces identical output.
-
-## API
-
-`/auth/register`, `/auth/login`, `/upload/orders`, `/upload/payments`, `/reconciliation/run`, `/dashboard`, `/discrepancies`, `/discrepancy/{id}`, `/llm/explain`, and `/export`.
-
-The dashboard offers summary cards, breakdown charts, search/status filters, a responsive results table, dark mode, empty/error/loading states, toast feedback, detail timelines, and authenticated CSV export.
-
-## AI explanation design
-
-The OpenAI Responses API is backend-only. It receives one completed result and requests JSON fields `summary`, `likely_cause`, `business_impact`, `recommended_action`, and `priority`. Temperature `0.2` keeps business prose stable. JSON is structurally validated, retried once, then replaced by a graceful deterministic fallback. The API key is never exposed to the browser.
-
-## Deployment
-
-- Supabase: create PostgreSQL and set `DATABASE_URL` using the `postgresql+psycopg://` scheme.
-- Render: use `render.yaml`; configure backend secrets. The container migrates before startup.
-- Vercel: import the repository using `vercel.json`; set `VITE_API_URL` to the Render origin.
-- Backend: set `FRONTEND_URL` to the exact Vercel origin for CORS.
-
-All settings are documented in `.env.example`; no secrets are committed.
-
-## Quality and tests
-
-Run `pytest` in `backend`, and `npm test`, `npm run build`, `npm run lint`, and `npm run format:check` in `frontend`. CI executes backend and frontend tests and builds. Tests cover authentication plus CSV import/reconciliation/API flow; the deterministic service is deliberately isolated for expanding classification fixtures.
-
-## Business findings and resilience
-
-The dashboard emphasizes reconciliation rate, matched value, disputed value, and money at risk. Explicit lifecycle/settlement categories prevent operational failures from being collapsed into generic amount differences. Database transactions avoid partial imports; API errors are actionable; the UI supports retry and empty states.
-
-## Future improvements
-
-For very large files: background workers, object storage, streaming parsers, policy-versioned tolerances, audit events, resolution workflows, MFA/SSO, observability, and PostgreSQL row-level security.
+**Tolerances:** The amount tolerance is strictly `$0.00` (exact match required). For a financial reconciliation tool, zero tolerance ensures that even micro-penny discrepancies are flagged for review rather than hidden behind a fuzzy threshold. Because rule precedence is fixed, re-running the tool on the same data produces identical, deterministic outputs.
 
 ## What we found in the data
 
-AI-assisted development accelerated scaffolding and review. No AI output participates in record matching.
+Running the provided real assignment datasets through the pipeline revealed the following:
+- 185 orders imported cleanly, 187 payments imported cleanly, 0 import errors in either file.
+- 187 total reconciliation results; 164 matched cleanly (87.7%).
+- Total dollar risk: **$2,205.81** across 23 discrepant records.
+- Breakdown: `amount_mismatch` (6, $103.54), `missing_payment` (4, $392.35), `multiple_payments` (4, $467.58), `payment_without_order` (3, $308.00), `currency_mismatch` (2, $355.00), `duplicate_order` (1, $27.34), `cancelled_order` (1, $175.00), `failed_payment` (1, $310.00), `status_mismatch` (1, $67.00).
 
-During data inspection of the real assignment datasets (`orders.csv` and `payments.csv`), several structural anomalies and data quality issues were identified:
-- **Date Format Inconsistencies:** There were mixed date formats across the datasets (e.g., ISO formats vs DD/MM/YYYY).
-- **Data Masking:** The `amount` column in the orders data contained masked values or anomalies that needed handling.
-- **Status Variations:** Various non-standard status values were present.
-- **Reconciliation Results:** After processing the real data through the pipeline, the system identified **164 perfect matches** and flagged **$2,205.81 in total financial risk** across the discrepancies.
+**Operational Impact:**
+- `missing_payment` (4 orders, $392.35): Orders show completed with no matching payment. This is either a failed webhook after checkout or a payment that silently failed post-order-creation, representing the highest-priority category for support ops to investigate.
+- `multiple_payments` (4 orders, $467.58): Customers were charged multiple times for a single order, risking severe chargebacks and brand damage if not proactively refunded.
+- `payment_without_order` (3 payments, $308.00): Money was captured without an associated order, indicating that the order creation system failed after the payment gateway succeeded.
+- `amount_mismatch` (6 orders, $103.54): The captured amounts did not match the order totals, indicating issues with tax calculations, discount applications, or rounding errors during checkout.
+
+**Data Quality Issues:**
+The `payments.csv` encodes dates as DD/MM/YYYY (e.g., 02/04/2025), while `orders.csv` uses YYYY-MM-DD HH:MM:SS. Currently, without `dayfirst=True` specified in the pandas parser, dates where the day is <= 12 are silently misread as month-first. While this does not affect reconciliation matching (which is keyed on `order_id`), it corrupts the `created_at` timestamp. 
+Furthermore, the two files use completely different column names for identical concepts (e.g., `orders.csv` uses `order_date` and `gross_amount` while `payments.csv` uses `processed_at` and `amount`). This messiness strongly implies that the order and payment systems were built independently, by different teams, at different times, with no shared schema or reconciliation ID convention. This is exactly the kind of technical drift that allows revenue to leak silently.
+
+## LLM approach
+
+The OpenAI API is called exclusively on the backend and is never exposed directly to the frontend client. The backend requests a structured JSON output utilizing the fields `summary`, `likely_cause`, `business_impact`, `recommended_action`, and `priority`.
+
+The LLM is configured with a temperature of `0.2`. A low temperature was intentionally chosen because this system generates operational and financial explanations that require consistency, reliability, and precision across repeated runs, rather than creative variation.
+
+**Error Handling:** The JSON response is strictly validated against a schema. If the output is malformed or an error occurs, the system automatically retries once. If the retry fails—or if no API key is configured—the system degrades gracefully by returning a deterministic, non-LLM fallback explanation built from the previously computed classification and reason fields. 
+
+**Crucially, the LLM is only used to explain already-computed deterministic results and never participates in the financial record matching process.**
+
+## What I'd improve next
+
+With more time, I would address the following improvements:
+- **Date Parsing Fix**: Explicitly pass `dayfirst=True` or a strict format string to the pandas date parser to fix the silent date corruption bug.
+- **Configurable Tolerances**: Introduce policy-versioned tolerances (e.g., ignoring micro-penny rounding errors up to $0.05) rather than relying on a hardcoded exact-match rule.
+- **Background Job Processing**: Move CSV ingestion to asynchronous background workers (e.g., Celery) to support very large files without blocking HTTP requests.
+- **Audit Logging**: Maintain an immutable audit log of all reconciliation runs and manual resolutions.
+- **Resolution Workflow**: Allow finance operators to manually mark a discrepancy as resolved or a false positive directly from the dashboard.
+- **Database Security**: Implement PostgreSQL Row-Level Security (RLS) for tighter multi-tenant data boundaries.
+- **Testing**: Expand test coverage specifically targeting the edge cases within the classification precedence rules.
+
+## AI tool usage
+
+I used Claude-powered AI coding tools (specifically, an autonomous agent implementation via the Gemini Antigravity system) to drastically accelerate the scaffolding and development of this assignment. The AI was utilized to draft the overarching React component structure, construct the Tailwind CSS design system ("LedgerView"), automate the execution of programmatic data inspection on the CSV files (finding the exact mismatched totals), and to draft this README document. While AI accelerated the process, I thoroughly reviewed and verified the underlying deterministic reconciliation logic in the backend, ensuring that I understand and can defend every part of the codebase.

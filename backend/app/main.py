@@ -47,6 +47,9 @@ def login(body:Login,db:Session=Depends(get_db)):
     value=db.scalar(select(User).where(User.email==body.email.lower()))
     if not value or not passwords.verify(body.password,value.password_hash):raise HTTPException(401,"Invalid credentials")
     return {"access_token":token(value.id),"token_type":"bearer"}
+@app.get("/auth/me")
+def me(u=Depends(user)):
+    return {"name":u.name,"email":u.email}
 async def upload(kind,file,u,db):
     data=await file.read(settings.max_upload_bytes+1)
     if len(data)>settings.max_upload_bytes:raise HTTPException(413,"File too large")
